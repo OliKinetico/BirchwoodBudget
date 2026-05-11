@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Birchwood Budget Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #f5f0e8;
+    --cream: #ede8dc;
+    --warm-mid: #c8bfaa;
+    --accent: #c84b2e;
+    --accent2: #2e6e5e;
+    --accent3: #c8941a;
+    --rule: #d4cec2;
+    --shadow: rgba(26,26,26,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* MASTHEAD */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 20px 40px;
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    background: var(--paper);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .masthead h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
+    letter-spacing: -0.02em;
+  }
+  .masthead .sub {
+    font-size: 0.78rem;
+    color: #888;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+  .masthead .badge {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+  }
+
+  /* NAV TABS */
+  .nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 40px;
+    background: var(--paper);
+  }
+  .nav-tab {
+    padding: 12px 18px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.15s;
+    color: #888;
+    letter-spacing: 0.01em;
+    user-select: none;
+  }
+  .nav-tab:hover { color: var(--ink); }
+  .nav-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+  /* VIEWS */
+  .view { display: none; padding: 32px 40px 60px; }
+  .view.active { display: block; }
+
+  /* GRID SYSTEM */
+  .grid { display: grid; gap: 20px; }
+  .col-4 { grid-template-columns: repeat(4, 1fr); }
+  .col-3 { grid-template-columns: repeat(3, 1fr); }
+  .col-2 { grid-template-columns: 1fr 1fr; }
+  .col-2-1 { grid-template-columns: 2fr 1fr; }
+
+  /* CARDS */
+  .card {
+    background: #fff;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card.accent-left { border-left: 4px solid var(--accent); }
+  .card.accent-green { border-left: 4px solid var(--accent2); }
+  .card.accent-amber { border-left: 4px solid var(--accent3); }
+  .card-label {
+    font-size: 0.7rem;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 6px;
+  }
+  .card-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .card-value.negative { color: var(--accent); }
+  .card-value.positive { color: var(--accent2); }
+  .card-note {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: #999;
+  }
+
+  /* SECTION HEADERS */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 28px 0 14px;
+  }
+  .section-head h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.15rem;
+  }
+  .section-head .rule {
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  /* MONTH STRIP */
+  .month-strip {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .month-pill {
+    flex: 0 0 auto;
+    padding: 6px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    font-size: 0.75rem;
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    background: var(--paper);
+    transition: all 0.12s;
+    user-select: none;
+  }
+  .month-pill:hover { background: var(--cream); }
+  .month-pill.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .month-pill.actual { border-bottom: 2px solid var(--accent2); }
+  .month-pill.forecast { border-bottom: 2px solid var(--accent3); opacity: 0.75; }
+
+  /* INCOME / EXPENSE TABLE */
+  .budget-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  .budget-table th {
+    text-align: left;
+    padding: 8px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #999;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 400;
+  }
+  .budget-table td { padding: 7px 10px; border-bottom: 1px solid #f0ece4; }
+  .budget-table tr:last-child td { border-bottom: none; }
+  .budget-table .row-total td { font-weight: 600; background: var(--paper); border-top: 1px solid var(--rule); }
+  .budget-table .row-cat td {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: #aaa;
+    background: #fcfaf7;
+    letter-spacing: 0.04em;
+    padding: 5px 10px;
+  }
+  .amount { text-align: right; font-family: 'DM Mono', monospace; }
+  .bar-cell { width: 80px; }
+  .mini-bar {
+    height: 6px;
+    background: var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .mini-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.4s;
+  }
+  .mini-bar-fill.income { background: var(--accent2); }
+  .tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 6px;
+    border-radius: 2px;
+    letter-spacing: 0.04em;
+  }
+  .tag.regular { background: #e8f5f0; color: var(--accent2); }
+  .tag.periodic { background: #fff3e0; color: var(--accent3); }
+  .tag.variable { background: #fdecea; color: var(--accent); }
+
+  /* CHART CONTAINER */
+  .chart-wrap { position: relative; height: 240px; }
+  .chart-wrap.tall { height: 300px; }
+
+  /* MORTGAGE TRACKER */
+  .balance-big {
+    font-family: 'DM Serif Display', serif;
+    font-size: 3rem;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .progress-track {
+    margin: 12px 0;
+    background: var(--rule);
+    border-radius: 3px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent3));
+    border-radius: 3px;
+    transition: width 0.5s;
+  }
+
+  /* DEBT TABLE */
+  .debt-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .debt-row:last-child { border-bottom: none; }
+  .debt-name { font-size: 0.85rem; font-weight: 500; min-width: 160px; }
+  .debt-balance { font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--accent); min-width: 90px; text-align: right; }
+  .debt-pmnt { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: #888; min-width: 80px; text-align: right; }
+  .debt-bar { flex: 1; }
+
+  /* ONE-OFFS TABLE */
+  .oneoff-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .oneoff-table th {
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: #999;
+    font-weight: 400;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .oneoff-table td { padding: 8px 10px; border-bottom: 1px solid #f0ece4; }
+  .oneoff-table tr:last-child td { border-bottom: none; }
+  .paid-badge {
+    font-size: 0.65rem;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 2px;
+    letter-spacing: 0.04em;
+  }
+  .paid-yes { background: #e8f5f0; color: var(--accent2); }
+  .paid-no { background: #fdecea; color: var(--accent); }
+
+  /* STATEMENT LOG */
+  .tx-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 80px 80px 100px;
+    gap: 10px;
+    padding: 7px 10px;
+    font-size: 0.8rem;
+    border-bottom: 1px solid #f0ece4;
+    align-items: center;
+  }
+  .tx-row:hover { background: #fcfaf7; }
+  .tx-head {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    color: #999;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 90px 1fr 80px 80px 100px;
+    gap: 10px;
+  }
+  .tx-date { font-family: 'DM Mono', monospace; color: #999; font-size: 0.75rem; }
+  .tx-amount-out { font-family: 'DM Mono', monospace; text-align: right; color: var(--accent); }
+  .tx-amount-in { font-family: 'DM Mono', monospace; text-align: right; color: var(--accent2); }
+  .tx-balance { font-family: 'DM Mono', monospace; text-align: right; }
+  .tx-cat { font-size: 0.7rem; font-family: 'DM Mono', monospace; color: #888; }
+
+  /* FORECAST WARNING */
+  .warning-box {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-left: 4px solid var(--accent3);
+    border-radius: 4px;
+    padding: 14px 18px;
+    font-size: 0.83rem;
+    line-height: 1.6;
+  }
+  .warning-box strong { color: var(--accent); }
+
+  /* SCROLLABLE */
+  .scroll-area { max-height: 400px; overflow-y: auto; }
+  .scroll-area::-webkit-scrollbar { width: 4px; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+  @media (max-width: 900px) {
+    .col-4 { grid-template-columns: 1fr 1fr; }
+    .col-3 { grid-template-columns: 1fr 1fr; }
+    .masthead, .nav, .view { padding-left: 20px; padding-right: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <h1>🏠 Birchwood Budget</h1>
+  <span class="sub">Apr 2025 → Mar 2026 · 2026–27 Forecast</span>
+  <span class="badge">LIVE DASHBOARD</span>
+</div>
+
+<div class="nav">
+  <div class="nav-tab active" onclick="switchView('overview')">Overview</div>
+  <div class="nav-tab" onclick="switchView('monthly')">Monthly Planner</div>
+  <div class="nav-tab" onclick="switchView('forecast')">2026–27 Forecast</div>
+  <div class="nav-tab" onclick="switchView('mortgage')">Mortgage & Debt</div>
+  <div class="nav-tab" onclick="switchView('oneoffs')">One-Offs</div>
+  <div class="nav-tab" onclick="switchView('statements')">Statement Log</div>
+  <div class="nav-tab" onclick="switchView('upload')">📤 Upload Statement</div>
+</div>
+
+<!-- ─── OVERVIEW ─── -->
+<div id="view-overview" class="view active">
+  <div class="grid col-4">
+    <div class="card accent-green">
+      <div class="card-label">YTD Income</div>
+      <div class="card-value positive">£86,946</div>
+      <div class="card-note">Apr 2025 → Mar 2026</div>
+    </div>
+    <div class="card accent-left">
+      <div class="card-label">YTD Expenses</div>
+      <div class="card-value negative">—</div>
+      <div class="card-note">Update each month</div>
+    </div>
+    <div class="card accent-amber">
+      <div class="card-label">Current Month Income</div>
+      <div class="card-value">£6,053</div>
+      <div class="card-note">Dec 2025 (latest)</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Mortgage Balance (DR)</div>
+      <div class="card-value negative">£34,526</div>
+      <div class="card-note">Investec revolving – Mar 2026</div>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>Income by Month</h2><div class="rule"></div></div>
+  <div class="card">
+    <div class="chart-wrap">
+      <canvas id="incomeChart"></canvas>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>2026–27 Forecast Warning</h2><div class="rule"></div></div>
+  <div class="warning-box">
+    <strong>⚠️ Projected annual deficit of £63,274</strong> — Annual income forecast £72,628 vs annual expenses £135,902. The gap is primarily driven by new costs starting Sep 2026: Habs fees £17,482 + Clowns Nursery £22,376 + ongoing Nanny £32,000. Together these three items alone total <strong>£71,858/yr</strong> — nearly matching total expected income. Review income assumptions or consider phasing costs.
+  </div>
+
+  <div class="section-head"><h2>Top Annual Costs (2026–27 Forecast)</h2><div class="rule"></div></div>
+  <div class="card">
+    <div class="chart-wrap">
+      <canvas id="costBreakdownChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MONTHLY PLANNER ─── -->
+<div id="view-monthly" class="view">
+  <div class="month-strip" id="monthStrip"></div>
+  <div id="monthDetail" style="margin-top: 20px;"></div>
+</div>
+
+<!-- ─── FORECAST ─── -->
+<div id="view-forecast" class="view">
+  <div class="grid col-4">
+    <div class="card accent-green">
+      <div class="card-label">Forecast Annual Income</div>
+      <div class="card-value positive">£72,628</div>
+      <div class="card-note">May 2026 → Apr 2027</div>
+    </div>
+    <div class="card accent-left">
+      <div class="card-label">Forecast Annual Expenses</div>
+      <div class="card-value negative">£135,902</div>
+      <div class="card-note">Includes all commitments</div>
+    </div>
+    <div class="card accent-left">
+      <div class="card-label">Annual Net</div>
+      <div class="card-value negative">−£63,274</div>
+      <div class="card-note">Requires mortgage drawdown</div>
+    </div>
+    <div class="card accent-amber">
+      <div class="card-label">Mortgage End Balance</div>
+      <div class="card-value negative">£61,446</div>
+      <div class="card-note">Apr 2027 projected</div>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>Monthly Income vs Expenses Forecast</h2><div class="rule"></div></div>
+  <div class="card">
+    <div class="chart-wrap tall">
+      <canvas id="forecastChart"></canvas>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>Forecast Line Items</h2><div class="rule"></div></div>
+  <div class="card">
+    <div class="scroll-area">
+      <table class="budget-table" id="forecastTable"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MORTGAGE & DEBT ─── -->
+<div id="view-mortgage" class="view">
+  <div class="grid col-2">
+    <div class="card">
+      <div class="card-label">Revolving Mortgage Balance (Mar 2026)</div>
+      <div class="balance-big">£34,526</div>
+      <div class="card-note" style="margin-top:8px">Investec 393099/33 · Rate: BoE +8.25% ≈ 8.25% p.a.</div>
+      <div class="progress-track"><div class="progress-fill" style="width:56%"></div></div>
+      <div style="font-size:0.75rem;color:#999">Projected to reach £61,446 by Apr 2027 if only £500/mo paid</div>
+      <div style="margin-top:16px;font-size:0.8rem;font-weight:600">What-if: Monthly Repayment Impact</div>
+      <table class="budget-table" style="margin-top:8px" id="whatifTable"></table>
+    </div>
+    <div class="card">
+      <div class="card-label">Mortgage Balance Projection</div>
+      <div class="chart-wrap tall">
+        <canvas id="mortgageChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>All Debts</h2><div class="rule"></div></div>
+  <div class="card">
+    <div id="debtList"></div>
+  </div>
+
+  <div class="section-head"><h2>Investec Revolving — Transaction Log</h2><div class="rule"></div></div>
+  <div class="card">
+    <div class="tx-head">
+      <span>Date</span><span>Description</span><span style="text-align:right">Out</span><span style="text-align:right">In</span><span style="text-align:right">Balance (DR)</span>
+    </div>
+    <div class="scroll-area" id="investecLog"></div>
+  </div>
+</div>
+
+<!-- ─── ONE-OFFS ─── -->
+<div id="view-oneoffs" class="view">
+  <div class="grid col-2">
+    <div>
+      <div class="section-head"><h2>Upcoming / Outstanding</h2><div class="rule"></div></div>
+      <div class="card">
+        <table class="oneoff-table" id="oneoffPending"></table>
+      </div>
+    </div>
+    <div>
+      <div class="section-head"><h2>Paid / Confirmed</h2><div class="rule"></div></div>
+      <div class="card">
+        <table class="oneoff-table" id="oneoffPaid"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── STATEMENT LOG ─── -->
+<div id="view-statements" class="view">
+  <div class="section-head"><h2>PBA Monthly Summary</h2><div class="rule"></div></div>
+  <div class="card">
+    <table class="budget-table" id="pbaTable"></table>
+  </div>
+  <div class="section-head"><h2>Key Observations</h2><div class="rule"></div></div>
+  <div class="card">
+    <div style="display:flex;flex-direction:column;gap:10px" id="observations"></div>
+  </div>
+</div>
+
+<!-- ─── UPLOAD ─── -->
+<div id="view-upload" class="view">
+  <div style="max-width:600px">
+    <div class="section-head"><h2>Upload Bank Statement</h2><div class="rule"></div></div>
+    <div class="card" style="text-align:center;padding:40px">
+      <div style="font-size:2.5rem;margin-bottom:14px">📂</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:1.3rem;margin-bottom:8px">Auto-categorise transactions</div>
+      <div style="font-size:0.83rem;color:#888;margin-bottom:24px;line-height:1.7">
+        Upload a CSV from Investec or any UK bank. Transactions are matched against your known payees and auto-assigned to budget categories based on your existing planner.
+      </div>
+      <label style="display:inline-block;background:var(--ink);color:#fff;padding:12px 28px;border-radius:3px;cursor:pointer;font-size:0.85rem;font-weight:500">
+        Choose CSV file
+        <input type="file" accept=".csv" id="csvUpload" style="display:none" onchange="handleCSV(this)">
+      </label>
+      <div style="margin-top:14px;font-size:0.75rem;color:#bbb">Supported: Investec CSV, Monzo CSV, standard OFX/CSV</div>
+    </div>
+
+    <div id="uploadResult" style="margin-top:20px;display:none">
+      <div class="section-head"><h2>Categorised Transactions</h2><div class="rule"></div></div>
+      <div class="card">
+        <div class="tx-head" style="grid-template-columns:90px 1fr 80px 140px">
+          <span>Date</span><span>Description</span><span style="text-align:right">Amount</span><span>Category</span>
+        </div>
+        <div id="uploadedRows" class="scroll-area"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+
+const months = ['April','May','June','July','August','September','October','November','December','January','February','March'];
+const shortMonths = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
+const incomeData = {
+  'Oli Income':    [3640,3000,3000,3400,10921,5500.92,3942.1,3942.1,3795.54,3795.34,3795.34,3795.34],
+  'Heartcore':     [1645,1100,1100,2148,1100,1100,1100,1100,1100,1100,1100,1100],
+  'Barry Health Ins': [157,157,157,157,157,157,157,157,157,157,157,157],
+  'Barry DD':      [1000,1000,1000,1000,1000,1000,1000,1000,1000,1000,1000,1000],
+  'Misc / One-Off':[2257,849,2635,0,0,0,0,0,0,0,0,0],
+};
+
+const expenseData = [
+  {cat:'HOME',     name:'Mortgage Interest',      type:'Regular',   vals:[2257,340,348,20,20,42.2,30.8,58,77.68,118.82,148.82,157.23]},
+  {cat:'HOME',     name:'Octopus Energy',          type:'Regular',   vals:[450,450,542,542,542,542.25,597.46,597.46,597.46,597.46,863.11,650]},
+  {cat:'HOME',     name:'Thames Water',            type:'Regular',   vals:[60,60,81,81,81,81,81,81,84,84,84,84]},
+  {cat:'HOME',     name:'Service Charge',          type:'Periodic',  vals:[0,0,0,0,0,1526,0,0,0,0,0,1526]},
+  {cat:'HOME',     name:'Council Tax',             type:'Regular',   vals:[263,263,263,263,263,263,263,263,263,263,263,263]},
+  {cat:'HOME',     name:'Cleaning',                type:'Regular',   vals:[272,192,192,192,192,192,192,192,192,192,192,192]},
+  {cat:'HOME',     name:'Account Fee',             type:'Regular',   vals:[10,10,10,10,10,10,10,10,10,10,10,10]},
+  {cat:'FAMILY',   name:'Nanny (Michelle)',        type:'Variable',  vals:[0,0,0,0,650,2950,3250,2600,2900,6250,2620,2330]},
+  {cat:'FAMILY',   name:'Ruby Pocket Money',       type:'Regular',   vals:[800,800,800,800,800,800,800,800,850,800,800,800]},
+  {cat:'FAMILY',   name:'Oli Pocket Money',        type:'Regular',   vals:[800,800,800,800,800,800,800,800,800,800,800,800]},
+  {cat:'TRANSPORT',name:'Jag Finance+Service',     type:'Regular',   vals:[252,252,252,252,252,252,252,252,252,252,252,252]},
+  {cat:'TRANSPORT',name:'EE Phones+Internet',      type:'Regular',   vals:[100,75,80,80,80,94.99,74.42,73.49,73.49,73.49,74.42,73.49]},
+  {cat:'INSURANCE',name:'Home+Car+Bike Insurance', type:'Regular',   vals:[911,88,413,471,855,383.62,383.62,383.62,383.62,440.38,660.47,660.22]},
+  {cat:'INSURANCE',name:'Health Insurance',        type:'Regular',   vals:[174.61,174.61,174.61,216,242,241.85,241.85,241.85,241.85,241.85,241.85,241.85]},
+  {cat:'INSURANCE',name:'Pet Insurance',           type:'Regular',   vals:[101,101,104,104,104,104.22,104.22,104.22,104.22,104.22,104.22,104.22]},
+];
+
+const forecastIncome = [6052.34,6052.34,6052.34,6052.34,6052.34,6052.34,6052.34,6052.34,6052.34,6052.34,6052.34,6052.34];
+const forecastMonths = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
+
+const forecastExpenses = [
+  {cat:'HOME',    name:'Mortgage Interest',   vals:[0,4.54,13.66,22.84,53.77,103.62,148.71,193.67,238.93,282.82,334.2,385.91]},
+  {cat:'HOME',    name:'Octopus Energy',       vals:[450,450,500,550,600,650,650,700,800,750,650,550]},
+  {cat:'HOME',    name:'Thames Water',         vals:[84,84,84,84,84,84,84,84,84,84,84,84]},
+  {cat:'HOME',    name:'Service Charge',       vals:[0,0,0,0,1526,0,0,0,0,0,1526,0]},
+  {cat:'HOME',    name:'Council Tax',          vals:[263,263,263,263,263,263,263,263,263,263,263,263]},
+  {cat:'HOME',    name:'Cleaning',             vals:[192,192,192,192,192,192,192,192,192,192,192,192]},
+  {cat:'HOME',    name:'Account Fee',          vals:[10,10,10,10,10,10,10,10,10,10,10,10]},
+  {cat:'FAMILY',  name:'Nanny (Michelle)',     vals:[2520,2520,2520,2520,2520,3150,2520,3020,2520,2520,3150,2520]},
+  {cat:'FAMILY',  name:'Habs School Fees',     vals:[0,0,0,0,2185.25,2185.25,2185.25,2185.25,2185.25,2185.25,2185.25,2185.25]},
+  {cat:'FAMILY',  name:'Clowns Nursery',       vals:[0,0,0,0,2797,2797,2797,2797,2797,2797,2797,2797]},
+  {cat:'FAMILY',  name:'Ruby Pocket Money',    vals:[800,800,800,800,800,800,800,800,800,800,800,800]},
+  {cat:'FAMILY',  name:'Oli Pocket Money',     vals:[800,800,800,800,800,800,800,800,800,800,800,800]},
+  {cat:'TRANSPORT',name:'Jag Finance',         vals:[252,252,252,252,252,252,252,252,252,252,0,0]},
+  {cat:'TRANSPORT',name:'EE',                  vals:[75,75,75,75,75,75,75,75,75,75,75,75]},
+  {cat:'TRANSPORT',name:'Car Tax',             vals:[0,0,0,0,0,0,0,0,390,0,0,0]},
+  {cat:'TRANSPORT',name:'MOT',                 vals:[0,0,0,0,0,120,0,0,0,0,0,0]},
+  {cat:'INSURANCE',name:'Home+Car Insurance',  vals:[660,660,660,660,660,660,660,660,660,660,660,660]},
+  {cat:'INSURANCE',name:'Health Insurance',    vals:[242,242,242,242,242,242,242,242,242,242,242,242]},
+  {cat:'INSURANCE',name:'Pet Insurance',       vals:[104,104,104,104,104,104,104,104,104,104,104,104]},
+  {cat:'INSURANCE',name:'Vitality',            vals:[63,63,63,63,63,63,63,63,63,63,63,63]},
+];
+
+const investecLog = [
+  {date:'27 Aug 25',month:'Aug',desc:'Brought Forward',out:null,in:null,bal:6914.46,cat:'Opening'},
+  {date:'29 Aug 25',month:'Aug',desc:'Internal transfer from PBA',out:null,in:720,bal:6173.92,cat:'Transfer in'},
+  {date:'29 Aug 25',month:'Aug',desc:'Nanny — Michelle',out:650,in:null,bal:6823.92,cat:'Nanny'},
+  {date:'05 Sep 25',month:'Sep',desc:'Nanny — Michelle',out:650,in:null,bal:7473.92,cat:'Nanny'},
+  {date:'12 Sep 25',month:'Sep',desc:'Nanny — Michelle',out:650,in:null,bal:8123.92,cat:'Nanny'},
+  {date:'12 Sep 25',month:'Sep',desc:'Nanny — Michelle (extra)',out:350,in:null,bal:8473.92,cat:'Nanny'},
+  {date:'19 Sep 25',month:'Sep',desc:'Nanny — Michelle',out:650,in:null,bal:9123.92,cat:'Nanny'},
+  {date:'23 Sep 25',month:'Sep',desc:'Internal transfer from PBA',out:null,in:5700,bal:3423.92,cat:'Transfer in'},
+  {date:'23 Sep 25',month:'Sep',desc:'Mortgage Interest (Aug-Sep)',out:42.2,in:null,bal:3466.12,cat:'Interest'},
+  {date:'26 Sep 25',month:'Sep',desc:'Nanny — Michelle',out:650,in:null,bal:4073.92,cat:'Nanny'},
+  {date:'03 Oct 25',month:'Oct',desc:'Nanny — Michelle',out:650,in:null,bal:5723.92,cat:'Nanny'},
+  {date:'10 Oct 25',month:'Oct',desc:'Nanny — Michelle',out:650,in:null,bal:6373.92,cat:'Nanny'},
+  {date:'17 Oct 25',month:'Oct',desc:'Nanny — Michelle',out:650,in:null,bal:7023.92,cat:'Nanny'},
+  {date:'22 Oct 25',month:'Oct',desc:'Internal transfer to PBA',out:1800,in:null,bal:8823.92,cat:'Transfer out'},
+  {date:'23 Oct 25',month:'Oct',desc:'Mortgage Interest (Sep-Oct)',out:30.8,in:null,bal:8854.72,cat:'Interest'},
+  {date:'24 Oct 25',month:'Oct',desc:'Nanny — Michelle',out:650,in:null,bal:9473.92,cat:'Nanny'},
+  {date:'31 Oct 25',month:'Oct',desc:'Nanny — Michelle',out:650,in:null,bal:10123.92,cat:'Nanny'},
+  {date:'07 Nov 25',month:'Nov',desc:'Nanny — Michelle',out:650,in:null,bal:10773.92,cat:'Nanny'},
+  {date:'13 Nov 25',month:'Nov',desc:'Nanny — Michelle',out:650,in:null,bal:11423.92,cat:'Nanny'},
+  {date:'21 Nov 25',month:'Nov',desc:'Nanny — Michelle',out:650,in:null,bal:12073.92,cat:'Nanny'},
+  {date:'24 Nov 25',month:'Nov',desc:'Mortgage Interest (Oct-Nov)',out:58,in:null,bal:12131.92,cat:'Interest'},
+  {date:'28 Nov 25',month:'Nov',desc:'Nanny — Michelle',out:650,in:null,bal:12723.92,cat:'Nanny'},
+];
+
+const pbaSummary = [
+  {month:'Sep 2025',salary:5500.92,barry:1000,totalIn:14549.94,totalOut:14472.28,amex:255.45,insurance:383.62,balEnd:139.16},
+  {month:'Oct 2025',salary:3942.1,barry:1000,totalIn:7454.1,totalOut:7191.59,amex:26.32,insurance:383.62,balEnd:401.67},
+  {month:'Nov 2025',salary:3942.1,barry:1000,totalIn:9244.44,totalOut:4868.96,amex:354.81,insurance:383.62,balEnd:4777.15},
+  {month:'Dec 2025',salary:3795.54,barry:1000,totalIn:6728.48,totalOut:6514.61,amex:1735.2,insurance:383.62,balEnd:4991.02},
+  {month:'Jan 2026',salary:3795.34,barry:1000,totalIn:1729.84,totalOut:6526.87,amex:28.87,insurance:440.38,balEnd:193.99},
+  {month:'Feb 2026',salary:3795.34,barry:1000,totalIn:9948.67,totalOut:6578.13,amex:247.09,insurance:660.47,balEnd:3564.53},
+  {month:'Mar 2026',salary:3795.34,barry:1000,totalIn:1609.99,totalOut:5019.49,amex:601.78,insurance:660.22,balEnd:155.03},
+];
+
+const oneoffs = [
+  {desc:'Service Charge (bi-annual)',due:'Sep 2025',amount:1526,paid:'No',cat:'Home',notes:'Paid March & September'},
+  {desc:'Service Charge (bi-annual)',due:'Mar 2026',amount:1526,paid:'No',cat:'Home',notes:'Second payment'},
+  {desc:'Car Tax',due:'TBC',amount:250,paid:'No',cat:'Transport',notes:'Check renewal month'},
+  {desc:'MOT',due:'TBC',amount:null,paid:'No',cat:'Transport',notes:'Add cost when known'},
+  {desc:'Car Insurance Renewal',due:'TBC',amount:null,paid:'No',cat:'Insurance',notes:'Check renewal month'},
+  {desc:'Cheder fees',due:'TBC',amount:null,paid:'No',cat:'Family',notes:''},
+  {desc:'THFC / Events',due:'TBC',amount:null,paid:'No',cat:'Leisure',notes:''},
+  {desc:'Clowns Nursery Care',due:'11 Dec 2025',amount:5594.76,paid:'Yes',cat:'Family/Childcare',notes:'Termly one-off'},
+  {desc:'Oliver Abrams transfer',due:'29 Dec 2025',amount:1600,paid:'Yes',cat:'Personal',notes:'One-off transfer'},
+  {desc:'Oliver Abrams transfer',due:'26 Feb 2026',amount:400,paid:'Yes',cat:'Personal',notes:''},
+  {desc:'Ruby - University fee',due:'28 Jan 2026',amount:260,paid:'Yes',cat:'Family',notes:'Via Ruby Monzo'},
+  {desc:'Michelle holiday/extra pay',due:'24 Dec 2025',amount:950,paid:'Yes',cat:'Nanny',notes:'Extra Dec payment'},
+  {desc:'Michelle Jan lump sum',due:'27 Jan 2026',amount:3000,paid:'Yes',cat:'Nanny',notes:'Catch-up / arrears'},
+  {desc:'Esna Accountancy',due:'Oct 2025',amount:723.06,paid:'Yes',cat:'Business',notes:'Annual fee'},
+  {desc:'Village Shul (Oct)',due:'Oct 2025',amount:270,paid:'Yes',cat:'Family',notes:'GoCardless — ceased'},
+  {desc:'Village Shul (Jan)',due:'Jan 2026',amount:270,paid:'Yes',cat:'Family',notes:'Second payment — ceased'},
+  {desc:'Faraday Property Mgmt',due:'Oct 2025',amount:1608.1,paid:'Yes',cat:'Home',notes:'Service charge via agent'},
+  {desc:'TV Licence',due:'Jan 2026',amount:174.5,paid:'Yes',cat:'Home',notes:'Annual — ceased DD'},
+  {desc:'DVLA - 2 cars',due:'Jan 2026',amount:390,paid:'Yes',cat:'Transport',notes:'Annual vehicle tax'},
+  {desc:'Doorstep Dairy',due:'Feb 2026',amount:129,paid:'Yes',cat:'Food',notes:'One-off'},
+];
+
+const categoryRules = {
+  'Michelle':         'Nanny',
+  'Michelle Tabar':   'Nanny',
+  'Octopus':          'Utilities',
+  'Thames Water':     'Utilities',
+  'Council Tax':      'Council Tax',
+  'Admiral':          'Insurance',
+  'Health Insurance': 'Insurance',
+  'AXA':              'Insurance',
+  'Vitality':         'Insurance',
+  'Vodafone':         'Telecoms',
+  'EE':               'Telecoms',
+  'Jag':              'Transport',
+  'DVLA':             'Transport',
+  'Investec':         'Mortgage',
+  'School':           'Education',
+  'Nursery':          'Education',
+  'Clowns':           'Education',
+  'Habs':             'Education',
+  'Heartcore':        'Income',
+  'Salary':           'Income',
+  'Barry':            'Income',
+};
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function fmt(n) {
+  if (n==null || isNaN(n)) return '—';
+  return '£'+n.toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function fmtDec(n) {
+  if (n==null || isNaN(n)) return '—';
+  return '£'+n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function totalIncome(mi) {
+  return Object.values(incomeData).reduce((s,a) => s+(a[mi]||0), 0);
+}
+function totalExpenses(mi) {
+  return expenseData.reduce((s,r) => s+(r.vals[mi]||0), 0);
+}
+
+// ─── OVERVIEW CHARTS ────────────────────────────────────────────────────────
+
+function initOverviewCharts() {
+  const totals = shortMonths.map((_,i) => totalIncome(i));
+  new Chart(document.getElementById('incomeChart'), {
+    type: 'bar',
+    data: {
+      labels: shortMonths,
+      datasets: [{
+        label: 'Total Income',
+        data: totals,
+        backgroundColor: shortMonths.map((_,i) => totals[i] > 8000 ? '#2e6e5e' : '#c8941a'),
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => '£'+v.toLocaleString() }, grid: { color: '#f0ece4' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  const costs = [
+    {label:'Nanny (Michelle)',value:32000},
+    {label:'Clowns Nursery',value:22376},
+    {label:'Habs School Fees',value:17482},
+    {label:'All Insurance',value:13071},
+    {label:'Pocket Money',value:19200},
+    {label:'Octopus Energy',value:7300},
+    {label:'Council Tax',value:3156},
+    {label:'Mortgage Interest',value:1783},
+    {label:'Service Charge',value:3052},
+  ];
+  new Chart(document.getElementById('costBreakdownChart'), {
+    type: 'bar',
+    data: {
+      labels: costs.map(c=>c.label),
+      datasets: [{
+        data: costs.map(c=>c.value),
+        backgroundColor: ['#c84b2e','#d4623e','#c8941a','#5b8fa8','#7ab','#2e6e5e','#4a8f7a','#888','#aaa'],
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => '£'+v.toLocaleString() }, grid: { color: '#f0ece4' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ─── MONTHLY PLANNER ────────────────────────────────────────────────────────
+
+let activeMonth = 8; // December (index 8)
+
+function initMonthlyPlanner() {
+  const strip = document.getElementById('monthStrip');
+  months.forEach((m, i) => {
+    const p = document.createElement('div');
+    p.className = 'month-pill ' + (i < 8 ? 'actual' : 'forecast') + (i === activeMonth ? ' active' : '');
+    p.textContent = m;
+    p.onclick = () => { activeMonth = i; initMonthlyPlanner(); };
+    strip.appendChild(p);
+  });
+  renderMonthDetail(activeMonth);
+}
+
+function renderMonthDetail(mi) {
+  const inc = totalIncome(mi);
+  const exp = totalExpenses(mi);
+  const net = inc - exp;
+  const container = document.getElementById('monthDetail');
+
+  let html = `<div class="grid col-3" style="margin-bottom:16px">
+    <div class="card accent-green"><div class="card-label">Income</div><div class="card-value positive">${fmt(inc)}</div></div>
+    <div class="card accent-left"><div class="card-label">Expenses (tracked)</div><div class="card-value negative">${fmt(exp)}</div></div>
+    <div class="card ${net>=0?'accent-green':'accent-left'}"><div class="card-label">Net</div><div class="card-value ${net>=0?'positive':'negative'}">${net>=0?'+':''}${fmt(net)}</div></div>
+  </div>
+  <div class="grid col-2">
+  <div class="card"><div style="font-weight:600;margin-bottom:10px;font-size:0.85rem">💰 Income</div>
+    <table class="budget-table"><thead><tr><th>Source</th><th>Type</th><th class="amount">Amount</th></tr></thead><tbody>`;
+
+  Object.entries(incomeData).forEach(([name, vals]) => {
+    const v = vals[mi];
+    if (!v) return;
+    html += `<tr><td>${name}</td><td><span class="tag regular">Regular</span></td><td class="amount">${fmt(v)}</td></tr>`;
+  });
+  html += `<tr class="row-total"><td colspan="2">Total Income</td><td class="amount">${fmt(inc)}</td></tr>`;
+  html += `</tbody></table></div>`;
+
+  html += `<div class="card"><div style="font-weight:600;margin-bottom:10px;font-size:0.85rem">💸 Expenses</div>
+    <table class="budget-table"><thead><tr><th>Item</th><th>Type</th><th class="amount">Amount</th></tr></thead><tbody>`;
+
+  let prevCat = '';
+  expenseData.forEach(row => {
+    const v = row.vals[mi];
+    if (row.cat !== prevCat) {
+      html += `<tr class="row-cat"><td colspan="3">${row.cat}</td></tr>`;
+      prevCat = row.cat;
+    }
+    const tagClass = row.type === 'Regular' ? 'regular' : row.type === 'Periodic' ? 'periodic' : 'variable';
+    html += `<tr><td>${row.name}</td><td><span class="tag ${tagClass}">${row.type}</span></td><td class="amount">${v ? fmt(v) : '—'}</td></tr>`;
+  });
+  html += `<tr class="row-total"><td colspan="2">Total Expenses</td><td class="amount">${fmt(exp)}</td></tr>`;
+  html += `</tbody></table></div></div>`;
+
+  container.innerHTML = html;
+}
+
+// ─── FORECAST ───────────────────────────────────────────────────────────────
+
+function initForecast() {
+  const fExpTotals = forecastMonths.map((_,i) => forecastExpenses.reduce((s,r) => s+(r.vals[i]||0),0));
+  new Chart(document.getElementById('forecastChart'), {
+    type: 'bar',
+    data: {
+      labels: forecastMonths,
+      datasets: [
+        { label: 'Income', data: forecastIncome, backgroundColor: '#2e6e5e', borderRadius: 2 },
+        { label: 'Expenses', data: fExpTotals, backgroundColor: '#c84b2e', borderRadius: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y: { ticks: { callback: v => '£'+v.toLocaleString() }, grid: { color: '#f0ece4' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  let prevCat = '';
+  let tbl = `<thead><tr><th>Category</th><th>Type</th>`;
+  forecastMonths.forEach(m => tbl += `<th class="amount">${m}</th>`);
+  tbl += `<th class="amount">Annual</th></tr></thead><tbody>`;
+
+  forecastExpenses.forEach(row => {
+    if (row.cat !== prevCat) {
+      tbl += `<tr class="row-cat"><td colspan="${14+forecastMonths.length}">${row.cat}</td></tr>`;
+      prevCat = row.cat;
+    }
+    const ann = row.vals.reduce((s,v)=>s+v,0);
+    tbl += `<tr><td>${row.name}</td><td>${row.cat}</td>`;
+    row.vals.forEach(v => tbl += `<td class="amount">${v ? fmt(v) : '—'}</td>`);
+    tbl += `<td class="amount"><strong>${fmt(ann)}</strong></td></tr>`;
+  });
+  tbl += `</tbody>`;
+  document.getElementById('forecastTable').innerHTML = tbl;
+}
+
+// ─── MORTGAGE ───────────────────────────────────────────────────────────────
+
+function initMortgage() {
+  const balances = [0,0,1367.54,2744.2,4130.04,12055.06,19133.93,25627.89,32666.81,39250.99,45879.06,54714.51,61445.68];
+  const mLabels = ['May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','End'];
+  new Chart(document.getElementById('mortgageChart'), {
+    type: 'line',
+    data: {
+      labels: mLabels,
+      datasets: [{
+        label: 'Balance (DR)',
+        data: balances,
+        borderColor: '#c84b2e',
+        backgroundColor: 'rgba(200,75,46,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#c84b2e',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => '£'+v.toLocaleString() }, grid: { color: '#f0ece4' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  const whatif = [
+    [200,'>360',null,null,null],
+    [300,229,34174.09,68700,-21700],
+    [500,94,12474.09,47000,0],
+    [750,56,7474.09,42000,5000],
+    [1000,40,5474.09,40000,7000],
+    [1500,26,4474.09,39000,8000],
+    [2000,19,3474.09,38000,9000],
+  ];
+  let wtbl = `<thead><tr><th>Monthly Pmt</th><th class="amount">Months</th><th class="amount">Total Interest</th><th class="amount">Total Cost</th><th class="amount">Interest Saving</th></tr></thead><tbody>`;
+  whatif.forEach(r => {
+    const isCurrent = r[0]===500;
+    wtbl += `<tr${isCurrent?' style="background:#f0f8f5;font-weight:600"':''}>
+      <td>${fmt(r[0])}/mo</td>
+      <td class="amount">${r[1]}</td>
+      <td class="amount">${r[2]?fmt(r[2]):'—'}</td>
+      <td class="amount">${r[3]?fmt(r[3]):'—'}</td>
+      <td class="amount">${r[4]!=null?(r[4]>0?'+':'')+fmt(r[4]):'—'}</td>
+    </tr>`;
+  });
+  wtbl += `</tbody>`;
+  document.getElementById('whatifTable').innerHTML = wtbl;
+
+  const debts = [
+    {name:'Revolving Mortgage',balance:34525.91,payment:500,rate:'8.25%',end:'94 months',pct:100},
+    {name:'Nanny (Michelle)',balance:null,payment:2520,rate:'0%',end:'Ongoing',pct:null},
+    {name:'Jaguar Finance+Service',balance:null,payment:252,rate:'—',end:'Feb 2027',pct:60},
+  ];
+  let dhtml = '';
+  debts.forEach(d => {
+    dhtml += `<div class="debt-row">
+      <div class="debt-name">${d.name}</div>
+      <div class="debt-balance">${d.balance?fmt(d.balance):'Running'}</div>
+      <div class="debt-pmnt">${fmt(d.payment)}/mo</div>
+      <div class="debt-bar">
+        <div style="font-size:0.7rem;color:#999;margin-bottom:3px">${d.rate} · ${d.end}</div>
+        ${d.pct!=null?`<div class="mini-bar"><div class="mini-bar-fill" style="width:${d.pct}%"></div></div>`:'<span style="font-size:0.72rem;color:#bbb">interest-free</span>'}
+      </div>
+    </div>`;
+  });
+  document.getElementById('debtList').innerHTML = dhtml;
+
+  let logHtml = '';
+  investecLog.forEach(tx => {
+    logHtml += `<div class="tx-row">
+      <span class="tx-date">${tx.date}</span>
+      <span>${tx.desc}</span>
+      <span class="tx-amount-out">${tx.out?fmtDec(tx.out):'—'}</span>
+      <span class="tx-amount-in">${tx.in?fmtDec(tx.in):'—'}</span>
+      <span class="tx-balance">${fmtDec(tx.bal)}</span>
+    </div>`;
+  });
+  document.getElementById('investecLog').innerHTML = logHtml;
+}
+
+// ─── ONE-OFFS ───────────────────────────────────────────────────────────────
+
+function initOneOffs() {
+  const pending = oneoffs.filter(o => o.paid === 'No');
+  const paid = oneoffs.filter(o => o.paid === 'Yes');
+  function buildTable(items, el) {
+    let t = `<thead><tr><th>Description</th><th>Due</th><th class="amount">Amount</th><th>Category</th></tr></thead><tbody>`;
+    items.forEach(o => {
+      t += `<tr><td>${o.desc}</td><td>${o.due}</td><td class="amount">${o.amount?fmt(o.amount):'TBC'}</td><td><span class="tag periodic">${o.cat}</span></td></tr>`;
+    });
+    t += `</tbody>`;
+    document.getElementById(el).innerHTML = t;
+  }
+  buildTable(pending, 'oneoffPending');
+  buildTable(paid, 'oneoffPaid');
+}
+
+// ─── STATEMENTS ─────────────────────────────────────────────────────────────
+
+function initStatements() {
+  let t = `<thead><tr><th>Month</th><th class="amount">Salary In</th><th class="amount">Barry DD</th><th class="amount">Total In</th><th class="amount">Total DDs Out</th><th class="amount">Amex DD</th><th class="amount">Insurance</th><th class="amount">Balance End</th></tr></thead><tbody>`;
+  pbaSummary.forEach(r => {
+    const tight = r.balEnd < 500;
+    t += `<tr${tight?' style="background:#fdecea"':''}>
+      <td>${r.month}${tight?' ⚠️':''}</td>
+      <td class="amount">${fmtDec(r.salary)}</td>
+      <td class="amount">${fmtDec(r.barry)}</td>
+      <td class="amount tx-amount-in">${fmtDec(r.totalIn)}</td>
+      <td class="amount tx-amount-out">${fmtDec(r.totalOut)}</td>
+      <td class="amount">${fmtDec(r.amex)}</td>
+      <td class="amount">${fmtDec(r.insurance)}</td>
+      <td class="amount" style="${r.balEnd<500?'color:var(--accent);font-weight:600':''}">${fmtDec(r.balEnd)}</td>
+    </tr>`;
+  });
+  t += `</tbody>`;
+  document.getElementById('pbaTable').innerHTML = t;
+
+  const obs = [
+    {label:'Admiral Insurance', text:'Jumped from £383.62 → £440.38 (Jan) → £660.22 (Feb). Likely renewal — worth querying.', warn:true},
+    {label:'Octopus Energy', text:'Seasonal: £542 (Sep) → £597 (Oct–Dec) → £863 (Feb cold spike) → £650 (Mar). Budget £650 going forward.', warn:false},
+    {label:'Jan 2026 Cashflow', text:'Very tight — only £1,729 in vs £6,526 out. Salary landed 29 Jan so gap was covered, but risky.', warn:true},
+    {label:'Amex DD', text:'Highly variable (£26–£1,735). Cleared monthly. Consider tracking Amex spend separately.', warn:false},
+    {label:'Ceased DDs', text:'PDSC, PlanMyService, Richard Hall, Andrew Bird, Cycleplan, Village Shul, Doorstep Dairy — all confirmed ceased.', warn:false},
+  ];
+  let ohtml = '';
+  obs.forEach(o => {
+    ohtml += `<div style="display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:1rem;margin-top:1px">${o.warn?'⚠️':'ℹ️'}</span>
+      <div><strong style="font-size:0.83rem">${o.label}</strong><div style="font-size:0.8rem;color:#666;margin-top:2px">${o.text}</div></div>
+    </div>`;
+  });
+  document.getElementById('observations').innerHTML = ohtml;
+}
+
+// ─── UPLOAD / AUTO-CATEGORISE ───────────────────────────────────────────────
+
+function categorise(desc) {
+  for (const [key, cat] of Object.entries(categoryRules)) {
+    if (desc.toLowerCase().includes(key.toLowerCase())) return cat;
+  }
+  return 'Uncategorised';
+}
+
+function handleCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    const rows = lines.slice(1).map(l => {
+      const parts = l.split(',').map(s => s.replace(/"/g,'').trim());
+      return { date: parts[0], desc: parts[1] || parts[2] || '', amount: parts[2] || parts[3] || '' };
+    }).filter(r => r.desc);
+
+    let html = '';
+    rows.slice(0, 100).forEach(r => {
+      const cat = categorise(r.desc);
+      const catColor = cat === 'Uncategorised' ? 'variable' : cat === 'Income' ? 'income' : 'periodic';
+      html += `<div class="tx-row" style="grid-template-columns:90px 1fr 80px 140px">
+        <span class="tx-date">${r.date}</span>
+        <span>${r.desc}</span>
+        <span class="tx-amount-out">${r.amount}</span>
+        <span><span class="tag ${catColor}">${cat}</span></span>
+      </div>`;
+    });
+
+    document.getElementById('uploadedRows').innerHTML = html;
+    document.getElementById('uploadResult').style.display = 'block';
+  };
+  reader.readAsText(file);
+}
+
+// ─── NAV ────────────────────────────────────────────────────────────────────
+
+function switchView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  initOverviewCharts();
+  initMonthlyPlanner();
+  initForecast();
+  initMortgage();
+  initOneOffs();
+  initStatements();
+});
+</script>
+</body>
+</html>
