@@ -1089,7 +1089,10 @@ function setProgress(pct, text) {
 
 function parseInvestecStatement(text) {
   const txs = [];
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  // Stop at card transactions section to avoid duplicates
+  const cardSectionIdx = text.indexOf('Card Transactions for');
+  const cleanText = cardSectionIdx > -1 ? text.slice(0, cardSectionIdx) : text;
+  const lines = cleanText.split('\n').map(l => l.trim()).filter(l => l);
 
   // Investec transaction line patterns
   // Posting date is DD.MM.YYYY, sometimes followed by transaction date DD.MM.YYYY
