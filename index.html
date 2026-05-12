@@ -229,6 +229,7 @@
   <div class="nav-tab" onclick="switchView('mortgage',this)">Mortgage & Debt</div>
   <div class="nav-tab" onclick="switchView('oneoffs',this)">One-Offs</div>
   <div class="nav-tab" onclick="switchView('statements',this)">Statements</div>
+  <div class="nav-tab" onclick="switchView('upload',this)">📤 Upload Statement</div>
 </div>
 
 <!-- OVERVIEW -->
@@ -288,6 +289,55 @@
   <div class="card">
     <div class="tx-head"><span>Date</span><span>Description</span><span style="text-align:right">Out</span><span style="text-align:right">In</span><span style="text-align:right">Balance</span><span></span></div>
     <div class="scroll-area" id="txLog"></div>
+  </div>
+</div>
+
+
+<!-- UPLOAD STATEMENT -->
+<div id="view-upload" class="view">
+  <div style="max-width:700px">
+    <div class="section-head"><h2>Upload Investec Statement (PDF)</h2><div class="rule"></div></div>
+    <div class="card" style="text-align:center;padding:40px 30px">
+      <div style="font-size:2.5rem;margin-bottom:12px">PDF</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:1.2rem;margin-bottom:8px">Upload your Investec PDF</div>
+      <div style="font-size:0.82rem;color:#888;margin-bottom:24px;line-height:1.7">Transactions are automatically extracted and categorised. Review them then save to your Sheet in one click.</div>
+      <label style="display:inline-block;background:var(--ink);color:#fff;padding:12px 28px;border-radius:3px;cursor:pointer;font-size:0.85rem;font-weight:500">
+        Choose PDF
+        <input type="file" accept=".pdf" id="pdfUpload" style="display:none" onchange="handlePDF(this)">
+      </label>
+    </div>
+    <div id="uploadProgress" style="display:none;margin-top:16px">
+      <div class="card" style="text-align:center;padding:24px">
+        <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:#888" id="progressText">Reading PDF...</div>
+        <div style="margin-top:10px;background:var(--rule);border-radius:3px;height:6px;overflow:hidden">
+          <div id="progressBar" style="height:100%;background:var(--accent2);border-radius:3px;width:0%;transition:width 0.3s"></div>
+        </div>
+      </div>
+    </div>
+    <div id="uploadResult" style="display:none;margin-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-family:'DM Serif Display',serif;font-size:1.1rem" id="uploadSummaryTitle"></div>
+          <div style="font-size:0.78rem;color:#888;margin-top:3px" id="uploadSummaryMeta"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveAllToSheet()">Save All to Sheet</button>
+      </div>
+      <div class="grid col-3" style="margin-bottom:16px" id="uploadKPIs"></div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-weight:600;font-size:0.85rem;margin-bottom:12px">Spending by Category</div>
+        <div id="categoryBreakdown"></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-weight:600;font-size:0.85rem">Transactions <span id="txCount" style="font-weight:400;color:#999;font-size:0.78rem"></span></div>
+          <div style="font-size:0.75rem;color:#888">Click category to change</div>
+        </div>
+        <div style="display:grid;grid-template-columns:90px 1fr 80px 80px 130px;gap:8px;padding:6px 8px;font-family:'DM Mono',monospace;font-size:0.67rem;letter-spacing:0.06em;color:#999;text-transform:uppercase;border-bottom:1px solid var(--rule)">
+          <span>Date</span><span>Description</span><span style="text-align:right">Out</span><span style="text-align:right">In</span><span>Category</span>
+        </div>
+        <div class="scroll-area" id="parsedTxList"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -952,6 +1002,226 @@ function renderAllStatic() {
     <div class="card accent-amber"><div class="card-label">Forecast Deficit</div><div class="card-value negative">−£63,274</div><div class="card-note">2026–27 projection</div></div>
     <div class="card"><div class="card-label">Dec Income</div><div class="card-value">£6,053</div><div class="card-note">Month 9 of 12</div></div>`;
   setStatus('● Offline — data not live', 'error');
+}
+
+
+// ─── PDF UPLOAD & PARSER ─────────────────────────────────────────────────────
+
+const CATEGORIES = ['Income','Salary','Nanny','Mortgage','Utilities','Council Tax',
+  'Insurance','Transport','Education','Groceries','Shopping',
+  'Dining','Entertainment','Subscriptions','Personal','Family','Transfers','Fees','Other'];
+
+const CAT_RULES = [
+  {match:['MSK CLINICS','PAYROLL','HEARTCORE','LANESMAN B','ABRAMS V J'],  cat:'Income'},
+  {match:['MICHELLE','NANNY'],                                              cat:'Nanny'},
+  {match:['INVESTEC BANK','ORM'],                                           cat:'Mortgage'},
+  {match:['OCTOPUS','THAMES WATER'],                                        cat:'Utilities'},
+  {match:['L B CAMDEN','COUNCIL TAX'],                                      cat:'Council Tax'},
+  {match:['AXA','ADMIRAL','VITALITY','EUI LTD PET','CYCLEPLAN'],            cat:'Insurance'},
+  {match:['JUSTPARK','EE LIMITED','EE LTD','DVLA'],                         cat:'Transport'},
+  {match:['CLOWNS','NURSERY','HABS','CHEDER','VILLAGE SHUL','GOCARDLESS'],  cat:'Education'},
+  {match:['SAINSBURYS','TESCO','WAITROSE','OCADO','LIDL','ALDI'],           cat:'Groceries'},
+  {match:['AMAZON','AMZNMKTPLACE'],                                          cat:'Shopping'},
+  {match:['RESTAURANT','PATISSERIE','BAMBOO HUT','DELIVEROO'],              cat:'Dining'},
+  {match:['CLAUDE.AI','OPENAI','CHATGPT','GOOGLE PLAY','YOUTUBE','APPLE.COM','ADOBE','NETFLIX','PEACOCK'], cat:'Subscriptions'},
+  {match:['RUBY MONZO','OLIVER ABRAMS','INTERNAL TRANSFER'],                cat:'Transfers'},
+  {match:['ACCOUNT FEE'],                                                   cat:'Fees'},
+  {match:['MPB.COM','WEX PHOTO','STARLIGHT','A ACADEMY'],                   cat:'Entertainment'},
+];
+
+function categorizeTx(desc) {
+  const u = desc.toUpperCase();
+  for (const rule of CAT_RULES) {
+    if (rule.match.some(m => u.includes(m))) return rule.cat;
+  }
+  return 'Other';
+}
+
+let parsedTransactions = [];
+
+async function handlePDF(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('uploadProgress').style.display = 'block';
+  document.getElementById('uploadResult').style.display = 'none';
+  setProgress(10, 'Loading PDF library...');
+
+  if (!window.pdfjsLib) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  setProgress(20, 'Reading PDF...');
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  setProgress(40, 'Extracting text from ' + pdf.numPages + ' pages...');
+
+  let allItems = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    allItems = allItems.concat(tc.items.map(item => item.str));
+    setProgress(40 + Math.round((i / pdf.numPages) * 35), 'Page ' + i + ' of ' + pdf.numPages + '...');
+  }
+
+  setProgress(80, 'Parsing transactions...');
+  const fullText = allItems.join('\n');
+  parsedTransactions = parseInvestecStatement(fullText);
+  parsedTransactions.forEach(tx => { tx.category = categorizeTx(tx.desc); });
+
+  setProgress(100, 'Done!');
+  setTimeout(() => {
+    document.getElementById('uploadProgress').style.display = 'none';
+    renderUploadResult(parsedTransactions, file.name);
+  }, 300);
+}
+
+function setProgress(pct, text) {
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+
+function parseInvestecStatement(text) {
+  const txs = [];
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+  // Investec transaction line patterns
+  // Posting date is DD.MM.YYYY, sometimes followed by transaction date DD.MM.YYYY
+  const dateRe = /^\d{2}\.\d{2}\.\d{4}$/;
+  const amountRe = /^[\d,]+\.\d{2}(CR)?$/;
+  const skipWords = ['Investec Bank plc','Prudential','Page ','Posting date','Balance brought','Balance as at',
+    'Total','Transaction date','Transaction details','Money out','Money in','Balance'];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!dateRe.test(line)) { i++; continue; }
+
+    const postDate = line;
+    i++;
+
+    // Skip optional transaction date
+    if (i < lines.length && dateRe.test(lines[i])) i++;
+
+    // Collect description lines
+    const descLines = [];
+    while (i < lines.length) {
+      const l = lines[i];
+      if (dateRe.test(l)) break;
+      if (amountRe.test(l)) break;
+      if (skipWords.some(w => l.includes(w))) { i++; continue; }
+      if (l.length > 1) descLines.push(l);
+      i++;
+    }
+
+    // Collect amounts
+    const amounts = [];
+    while (i < lines.length && (amountRe.test(lines[i]) || lines[i] === '')) {
+      if (amountRe.test(lines[i])) amounts.push(lines[i]);
+      i++;
+    }
+
+    const rawDesc = descLines.join(' ').replace(/~~[^\s]*/g, '').replace(/\s+/g, ' ').trim();
+    if (!rawDesc || rawDesc.length < 3) continue;
+
+    // Determine out/in from description type
+    let moneyOut = null, moneyIn = null;
+    const descU = rawDesc.toUpperCase();
+    const isIncoming = descU.match(/FASTER PAYMENT|PAYROLL|INTERNAL TRANSFER FROM|DIRECT DEBIT.*INTEREST RECLAIM/);
+    
+    if (amounts.length >= 1) {
+      const firstAmt = parseFloat(amounts[0].replace(/,/g,'').replace('CR',''));
+      if (isIncoming || amounts[0].includes('CR')) {
+        moneyIn = firstAmt;
+      } else {
+        moneyOut = firstAmt;
+      }
+    }
+
+    txs.push({ date: postDate, desc: rawDesc, out: moneyOut, in: moneyIn, category: 'Other' });
+  }
+
+  return txs;
+}
+
+function renderUploadResult(txs, filename) {
+  const totalOut = txs.reduce((s,t) => s + (t.out||0), 0);
+  const totalIn  = txs.reduce((s,t) => s + (t.in||0), 0);
+  const net = totalIn - totalOut;
+
+  document.getElementById('uploadSummaryTitle').textContent = filename.replace('.pdf','');
+  document.getElementById('uploadSummaryMeta').textContent = txs.length + ' transactions extracted';
+  document.getElementById('txCount').textContent = '(' + txs.length + ')';
+
+  document.getElementById('uploadKPIs').innerHTML =
+    '<div class="card accent-left"><div class="card-label">Total Out</div><div class="card-value negative" style="font-size:1.6rem">\u00a3' + totalOut.toFixed(2) + '</div></div>' +
+    '<div class="card accent-green"><div class="card-label">Total In</div><div class="card-value positive" style="font-size:1.6rem">\u00a3' + totalIn.toFixed(2) + '</div></div>' +
+    '<div class="card' + (net>=0?' accent-green':' accent-left') + '"><div class="card-label">Net</div><div class="card-value ' + (net>=0?'positive':'negative') + '" style="font-size:1.6rem">' + (net>=0?'+':'\u2212') + '\u00a3' + Math.abs(net).toFixed(2) + '</div></div>';
+
+  renderCategoryBreakdown();
+
+  const catOptions = CATEGORIES.map(c => '<option>' + c + '</option>').join('');
+  let listHtml = '';
+  txs.forEach(function(tx, idx) {
+    const selOpts = CATEGORIES.map(c => '<option' + (c===tx.category?' selected':'') + '>' + c + '</option>').join('');
+    listHtml +=
+      '<div style="display:grid;grid-template-columns:90px 1fr 80px 80px 130px;gap:8px;padding:7px 8px;border-bottom:1px solid #f0ece4;font-size:0.8rem;align-items:center">' +
+      '<span style="font-family:\'DM Mono\',monospace;color:#999;font-size:0.75rem">' + tx.date + '</span>' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + tx.desc + '">' + tx.desc + '</span>' +
+      '<span style="font-family:\'DM Mono\',monospace;text-align:right;color:var(--accent)">' + (tx.out ? '\u00a3'+tx.out.toFixed(2) : '\u2014') + '</span>' +
+      '<span style="font-family:\'DM Mono\',monospace;text-align:right;color:var(--accent2)">' + (tx.in ? '\u00a3'+tx.in.toFixed(2) : '\u2014') + '</span>' +
+      '<select style="font-size:0.72rem;border:1px solid var(--rule);border-radius:2px;padding:2px 4px;background:var(--paper)" onchange="parsedTransactions[' + idx + '].category=this.value;renderCategoryBreakdown()">' + selOpts + '</select>' +
+      '</div>';
+  });
+  document.getElementById('parsedTxList').innerHTML = listHtml;
+  document.getElementById('uploadResult').style.display = 'block';
+}
+
+function renderCategoryBreakdown() {
+  const catTotals = {};
+  parsedTransactions.forEach(function(t) { if (t.out) catTotals[t.category] = (catTotals[t.category]||0) + t.out; });
+  const sorted = Object.entries(catTotals).sort(function(a,b){return b[1]-a[1];});
+  const maxVal = sorted.length ? sorted[0][1] : 1;
+  let html = '';
+  sorted.forEach(function(entry) {
+    const cat = entry[0], val = entry[1];
+    const pct = Math.round((val/maxVal)*100);
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+      '<div style="min-width:120px;font-size:0.78rem">' + cat + '</div>' +
+      '<div style="flex:1;background:var(--rule);border-radius:3px;height:8px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:var(--accent);border-radius:3px"></div></div>' +
+      '<div style="font-family:\'DM Mono\',monospace;font-size:0.78rem;min-width:70px;text-align:right">\u00a3' + val.toFixed(2) + '</div></div>';
+  });
+  document.getElementById('categoryBreakdown').innerHTML = html;
+}
+
+async function saveAllToSheet() {
+  if (!parsedTransactions.length) return;
+  setStatus('\u25cf Saving ' + parsedTransactions.length + ' transactions...', 'saving');
+  const rows = parsedTransactions.map(function(tx) {
+    return [tx.date, '', tx.desc, tx.out||'', tx.in||'', '', tx.category];
+  });
+  try {
+    const sheetName = encodeURIComponent("'\uD83C\uDFE6 Investec Statement Log'!A:G");
+    const url = BASE_URL + '/values/' + sheetName + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS&key=' + API_KEY;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ values: rows })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setStatus('\u25cf Saved \u2713');
+    setTimeout(function(){ setStatus('\u25cf Connected'); }, 2000);
+    alert('\u2713 ' + rows.length + ' transactions saved to your Sheet.');
+  } catch(e) {
+    console.error(e);
+    setStatus('\u25cf Save failed', 'error');
+    alert('Save failed. Check console for details.');
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
