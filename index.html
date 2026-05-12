@@ -1170,22 +1170,36 @@ function renderUploadResult(txs, filename) {
   let listHtml = '';
   txs.forEach(function(tx, idx) {
     const selOpts = CATEGORIES.map(c => '<option' + (c===tx.category?' selected':'') + '>' + c + '</option>').join('');
+    const isOther = tx.category === 'Other';
     listHtml +=
       '<div style="display:grid;grid-template-columns:90px 1fr 80px 80px 130px;gap:8px;padding:7px 8px;border-bottom:1px solid #f0ece4;font-size:0.8rem;align-items:center">' +
       '<span style="font-family:\'DM Mono\',monospace;color:#999;font-size:0.75rem">' + tx.date + '</span>' +
       '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + tx.desc + '">' + tx.desc + '</span>' +
       '<span style="font-family:\'DM Mono\',monospace;text-align:right;color:var(--accent)">' + (tx.out ? '\u00a3'+tx.out.toFixed(2) : '\u2014') + '</span>' +
       '<span style="font-family:\'DM Mono\',monospace;text-align:right;color:var(--accent2)">' + (tx.in ? '\u00a3'+tx.in.toFixed(2) : '\u2014') + '</span>' +
-      '<select style="font-size:0.72rem;border:1px solid var(--rule);border-radius:2px;padding:2px 4px;background:var(--paper)" onchange="parsedTransactions[' + idx + '].category=this.value;renderCategoryBreakdown()">' + selOpts + '</select>' +
+      '<div style="display:flex;flex-direction:column;gap:3px">' +
+      '<select style="font-size:0.72rem;border:1px solid var(--rule);border-radius:2px;padding:2px 4px;background:var(--paper)" onchange="onCatChange(this,' + idx + ')">' + selOpts + '</select>' +
+      '<input id="custom-' + idx + '" type="text" placeholder="Label..." style="display:' + (isOther?'block':'none') + ';font-size:0.7rem;border:1px solid var(--rule);border-radius:2px;padding:2px 4px;background:#fff;width:100%" oninput="parsedTransactions[' + idx + '].customLabel=this.value;renderCategoryBreakdown()" value="' + (tx.customLabel||'') + '">' +
+      '</div>' +
       '</div>';
   });
   document.getElementById('parsedTxList').innerHTML = listHtml;
   document.getElementById('uploadResult').style.display = 'block';
 }
 
+function onCatChange(sel, idx) {
+  parsedTransactions[idx].category = sel.value;
+  const customInput = document.getElementById('custom-' + idx);
+  if (customInput) {
+    customInput.style.display = sel.value === 'Other' ? 'block' : 'none';
+    if (sel.value !== 'Other') parsedTransactions[idx].customLabel = '';
+  }
+  renderCategoryBreakdown();
+}
+
 function renderCategoryBreakdown() {
   const catTotals = {};
-  parsedTransactions.forEach(function(t) { if (t.out) catTotals[t.category] = (catTotals[t.category]||0) + t.out; });
+  parsedTransactions.forEach(function(t) { if (t.out) { const k = t.category === 'Other' && t.customLabel ? t.customLabel : t.category; catTotals[k] = (catTotals[k]||0) + t.out; } });
   const sorted = Object.entries(catTotals).sort(function(a,b){return b[1]-a[1];});
   const maxVal = sorted.length ? sorted[0][1] : 1;
   let html = '';
@@ -1204,7 +1218,8 @@ async function saveAllToSheet() {
   if (!parsedTransactions.length) return;
   setStatus('\u25cf Saving ' + parsedTransactions.length + ' transactions...', 'saving');
   const rows = parsedTransactions.map(function(tx) {
-    return [tx.date, '', tx.desc, tx.out||'', tx.in||'', '', tx.category];
+    const cat = tx.category === 'Other' && tx.customLabel ? tx.customLabel : tx.category;
+    return [tx.date, '', tx.desc, tx.out||'', tx.in||'', '', cat];
   });
   try {
     const sheetName = encodeURIComponent("'\uD83C\uDFE6 Investec Statement Log'!A:G");
