@@ -1009,7 +1009,7 @@ function renderAllStatic() {
 
 const CATEGORIES = ['Income','Salary','Nanny','Mortgage','Utilities','Council Tax',
   'Insurance','Telecoms','Transport','Education','Groceries','Shopping',
-  'Dining','Entertainment','Subscriptions','Personal','Family','Transfers','Fees','Other'];
+  'Dining','Entertainment','Subscriptions','Pets','Personal','Family','Transfers','Fees','Other'];
 
 const CAT_RULES = [
   {match:['MSK CLINICS','PAYROLL','HEARTCORE','LANESMAN B','ABRAMS V J'],  cat:'Income'},
@@ -1028,6 +1028,7 @@ const CAT_RULES = [
   {match:['RUBY MONZO','OLIVER ABRAMS','INTERNAL TRANSFER'],                cat:'Transfers'},
   {match:['ACCOUNT FEE'],                                                   cat:'Fees'},
   {match:['MPB.COM','WEX PHOTO','STARLIGHT','A ACADEMY'],                   cat:'Entertainment'},
+  {match:['PET MANIA','EUI LTD PET','PETS AT HOME','VETS'],                  cat:'Pets'},
 ];
 
 function categorizeTx(desc) {
