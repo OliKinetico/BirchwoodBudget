@@ -6,6 +6,7 @@
 <title>Birchwood Budget Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --ink: #1a1a1a;
@@ -349,6 +350,8 @@
 <script>
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const API_KEY   = 'AIzaSyBxwXWpSrpOBtJl667zy53-DnDQ7RflTHo';
+const CLIENT_ID = '257932213978-ph14ppqo0pppjsfnuf0bsd19dr5g8h91.apps.googleusercontent.com';
+let accessToken = null;
 const SHEET_ID  = '1z99EnGGcwUaysLFADbcJER_BdaydIe4s4zir10ax7OQ';
 const BASE_URL  = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
 
@@ -383,12 +386,30 @@ async function readRange(range) {
   return d.values || [];
 }
 
+async function getAccessToken() {
+  if (accessToken) return accessToken;
+  return new Promise((resolve, reject) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: (resp) => {
+        if (resp.error) { reject(resp); return; }
+        accessToken = resp.access_token;
+        setTimeout(() => { accessToken = null; }, (resp.expires_in - 60) * 1000);
+        resolve(accessToken);
+      }
+    });
+    client.requestAccessToken();
+  });
+}
+
 async function writeRange(range, values) {
   setStatus('● Saving…', 'saving');
-  const url = `${BASE_URL}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED&key=${API_KEY}`;
+  const token = await getAccessToken();
+  const url = `${BASE_URL}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
   const r = await fetch(url, {
     method: 'PUT',
-    headers: {'Content-Type':'application/json'},
+    headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + token},
     body: JSON.stringify({ range, majorDimension:'ROWS', values })
   });
   if (!r.ok) {
@@ -401,10 +422,11 @@ async function writeRange(range, values) {
 
 async function appendRow(sheetName, values) {
   setStatus('● Saving…', 'saving');
-  const url = `${BASE_URL}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS&key=${API_KEY}`;
+  const token = await getAccessToken();
+  const url = `${BASE_URL}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   const r = await fetch(url, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + token},
     body: JSON.stringify({ values: [values] })
   });
   if (!r.ok) {
@@ -1226,11 +1248,12 @@ async function saveAllToSheet() {
     return [tx.date, '', tx.desc, tx.out||'', tx.in||'', '', cat];
   });
   try {
+    const token = await getAccessToken();
     const sheetName = encodeURIComponent("'\uD83C\uDFE6 Investec Statement Log'!A:G");
-    const url = BASE_URL + '/values/' + sheetName + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS&key=' + API_KEY;
+    const url = BASE_URL + '/values/' + sheetName + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
     const r = await fetch(url, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + token},
       body: JSON.stringify({ values: rows })
     });
     if (!r.ok) throw new Error(await r.text());
