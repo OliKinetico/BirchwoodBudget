@@ -1008,7 +1008,7 @@ function renderAllStatic() {
 // ─── PDF UPLOAD & PARSER ─────────────────────────────────────────────────────
 
 const CATEGORIES = ['Income','Salary','Nanny','Mortgage','Utilities','Council Tax',
-  'Insurance','Transport','Education','Groceries','Shopping',
+  'Insurance','Telecoms','Transport','Education','Groceries','Shopping',
   'Dining','Entertainment','Subscriptions','Personal','Family','Transfers','Fees','Other'];
 
 const CAT_RULES = [
@@ -1018,7 +1018,8 @@ const CAT_RULES = [
   {match:['OCTOPUS','THAMES WATER'],                                        cat:'Utilities'},
   {match:['L B CAMDEN','COUNCIL TAX'],                                      cat:'Council Tax'},
   {match:['AXA','ADMIRAL','VITALITY','EUI LTD PET','CYCLEPLAN'],            cat:'Insurance'},
-  {match:['JUSTPARK','EE LIMITED','EE LTD','DVLA'],                         cat:'Transport'},
+  {match:['EE LIMITED','EE LTD'],                                            cat:'Telecoms'},
+  {match:['JUSTPARK','DVLA'],                                                cat:'Transport'},
   {match:['CLOWNS','NURSERY','HABS','CHEDER','VILLAGE SHUL','GOCARDLESS'],  cat:'Education'},
   {match:['SAINSBURYS','TESCO','WAITROSE','OCADO','LIDL','ALDI'],           cat:'Groceries'},
   {match:['AMAZON','AMZNMKTPLACE'],                                          cat:'Shopping'},
