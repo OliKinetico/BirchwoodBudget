@@ -235,7 +235,7 @@
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
       <button class="btn btn-secondary" onclick="openRepaymentModal('payment')">+ Log a Payment</button>
     </div>
-    <div style="display:grid;grid-template-columns:90px 1fr 100px 100px 30px;gap:8px;padding:6px 10px;font-family:'DM Mono',monospace;font-size:0.67rem;letter-spacing:0.06em;color:#999;text-transform:uppercase;border-bottom:1px solid var(--rule)">
+    <div style="display:grid;grid-template-columns:90px 1fr 100px 100px 50px;gap:8px;padding:6px 10px;font-family:'DM Mono',monospace;font-size:0.67rem;letter-spacing:0.06em;color:#999;text-transform:uppercase;border-bottom:1px solid var(--rule)">
       <span>Date</span><span>Description</span><span style="text-align:right">Amount</span><span>Loan</span><span></span>
     </div>
     <div class="scroll-area" id="repaymentLog"></div>
@@ -800,6 +800,7 @@ function renderLoanList(direction, elId) {
       ${loan.monthly ? `<div style="margin-top:4px;font-size:0.72rem;color:#999">Started ${loan.startDate}${monthsLeft?' · Clear by approx '+getPayoffDate(monthsLeft):''}</div>` : ''}
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn btn-secondary" style="font-size:0.75rem;padding:5px 12px" onclick="openRepaymentModal('payment','${loan.id}')">Log Payment</button>
+        <button class="btn btn-secondary" style="font-size:0.75rem;padding:5px 12px" onclick="editLoan('${loan.id}')">Edit</button>
         <button class="btn btn-secondary" style="font-size:0.75rem;padding:5px 12px;color:var(--accent)" onclick="deleteLoan('${loan.id}')">Remove</button>
       </div>
     </div>`;
@@ -820,12 +821,15 @@ function renderRepaymentLog() {
     const loan = repaymentData.loans.find(l => l.id === p.loanId);
     const loanName = loan ? loan.name : 'Unknown';
     const direction = loan ? loan.direction : '';
-    html += `<div style="display:grid;grid-template-columns:90px 1fr 100px 100px 30px;gap:8px;padding:7px 10px;border-bottom:1px solid #f0ece4;font-size:0.8rem;align-items:center">
+    html += `<div style="display:grid;grid-template-columns:90px 1fr 100px 100px 50px;gap:8px;padding:7px 10px;border-bottom:1px solid #f0ece4;font-size:0.8rem;align-items:center">
       <span style="font-family:'DM Mono',monospace;color:#999;font-size:0.75rem">${p.date}</span>
       <span>${p.notes||loanName}</span>
       <span style="font-family:'DM Mono',monospace;text-align:right;color:${direction==='owe'?'var(--accent)':'var(--accent2)'}">£${p.amount.toFixed(2)}</span>
       <span style="font-size:0.75rem;color:#888">${loanName}</span>
-      <span style="cursor:pointer;color:#ccc;text-align:center" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#ccc'" onclick="deletePayment('${p.id}')">×</span>
+      <div style="display:flex;gap:6px;justify-content:center">
+        <span style="cursor:pointer;color:#ccc;font-size:0.8rem" title="Edit" onmouseover="this.style.color='var(--accent2)'" onmouseout="this.style.color='#ccc'" onclick="editPayment('${p.id}')">✏</span>
+        <span style="cursor:pointer;color:#ccc;font-size:0.9rem" title="Delete" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#ccc'" onclick="deletePayment('${p.id}')">×</span>
+      </div>
     </div>`;
   });
   document.getElementById('repaymentLog').innerHTML = html || '<div style="padding:16px;color:#999;font-size:0.82rem">No payments logged yet</div>';
@@ -891,6 +895,69 @@ function savePayment() {
   if (!loanId || !amount) { alert('Please select a loan and enter an amount'); return; }
   const payment = { id: Date.now().toString(), loanId, date, amount, notes };
   repaymentData.payments.push(payment);
+  saveRepaymentData();
+  closeRepaymentModal();
+  renderRepayments();
+}
+
+function editLoan(loanId) {
+  const loan = repaymentData.loans.find(l => l.id === loanId);
+  if (!loan) return;
+  const modal = document.getElementById('repaymentModal');
+  const content = document.getElementById('repaymentModalContent');
+  content.innerHTML = `
+    <h3>Edit Loan</h3>
+    <div class="form-row"><label>Name</label><input type="text" id="rl_name" value="${loan.name}"></div>
+    <div class="form-row"><label>Total Amount (£)</label><input type="number" id="rl_total" value="${loan.total}"></div>
+    <div class="form-row"><label>Monthly Repayment (£)</label><input type="number" id="rl_monthly" value="${loan.monthly||0}"></div>
+    <div class="form-row"><label>Start Date</label><input type="text" id="rl_start" value="${loan.startDate||''}"></div>
+    <div class="form-row"><label>Notes</label><input type="text" id="rl_notes" value="${loan.notes||''}"></div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeRepaymentModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="updateLoan('${loanId}')">Save Changes</button>
+    </div>`;
+  modal.classList.add('open');
+}
+
+function updateLoan(loanId) {
+  const loan = repaymentData.loans.find(l => l.id === loanId);
+  if (!loan) return;
+  loan.name = document.getElementById('rl_name').value || loan.name;
+  loan.total = parseFloat(document.getElementById('rl_total').value) || loan.total;
+  loan.monthly = parseFloat(document.getElementById('rl_monthly').value) || 0;
+  loan.startDate = document.getElementById('rl_start').value || loan.startDate;
+  loan.notes = document.getElementById('rl_notes').value;
+  saveRepaymentData();
+  closeRepaymentModal();
+  renderRepayments();
+}
+
+function editPayment(paymentId) {
+  const p = repaymentData.payments.find(p => p.id === paymentId);
+  if (!p) return;
+  const loanOpts = repaymentData.loans.map(l => `<option value="${l.id}"${l.id===p.loanId?' selected':''}>${l.name}</option>`).join('');
+  const modal = document.getElementById('repaymentModal');
+  const content = document.getElementById('repaymentModalContent');
+  content.innerHTML = `
+    <h3>Edit Payment</h3>
+    <div class="form-row"><label>Loan / Person</label><select id="rp_loan">${loanOpts}</select></div>
+    <div class="form-row"><label>Date</label><input type="text" id="rp_date" value="${p.date}"></div>
+    <div class="form-row"><label>Amount (£)</label><input type="number" id="rp_amount" value="${p.amount}"></div>
+    <div class="form-row"><label>Notes</label><input type="text" id="rp_notes" value="${p.notes||''}"></div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeRepaymentModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="updatePayment('${paymentId}')">Save Changes</button>
+    </div>`;
+  modal.classList.add('open');
+}
+
+function updatePayment(paymentId) {
+  const p = repaymentData.payments.find(p => p.id === paymentId);
+  if (!p) return;
+  p.loanId = document.getElementById('rp_loan').value;
+  p.date = document.getElementById('rp_date').value || p.date;
+  p.amount = parseFloat(document.getElementById('rp_amount').value) || p.amount;
+  p.notes = document.getElementById('rp_notes').value;
   saveRepaymentData();
   closeRepaymentModal();
   renderRepayments();
