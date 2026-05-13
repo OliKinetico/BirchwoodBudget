@@ -109,6 +109,7 @@
   <div class="nav-tab" onclick="switchView('oneoffs',this)">One-Offs</div>
   <div class="nav-tab" onclick="switchView('statements',this)">Statements</div>
   <div class="nav-tab" onclick="switchView('upload',this)">📤 Upload Statement</div>
+  <div class="nav-tab" onclick="switchView('repayments',this)">💳 Repayment Tracker</div>
 </div>
 
 <div id="view-overview" class="view active">
@@ -211,6 +212,38 @@
       </div>
     </div>
   </div>
+</div>
+
+
+<div id="view-repayments" class="view">
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:16px">
+    <button class="btn btn-primary" onclick="openRepaymentModal('owe')">+ I Owe Someone</button>
+    <button class="btn btn-primary" style="background:var(--accent2)" onclick="openRepaymentModal('owed')">+ Someone Owes Me</button>
+  </div>
+  <div class="grid col-2">
+    <div>
+      <div class="section-head"><h2>Money I Owe</h2><div class="rule"></div></div>
+      <div id="oweList"></div>
+    </div>
+    <div>
+      <div class="section-head"><h2>Money Owed to Me</h2><div class="rule"></div></div>
+      <div id="owedList"></div>
+    </div>
+  </div>
+  <div class="section-head"><h2>Repayment Log</h2><div class="rule"></div></div>
+  <div class="card">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-secondary" onclick="openRepaymentModal('payment')">+ Log a Payment</button>
+    </div>
+    <div style="display:grid;grid-template-columns:90px 1fr 100px 100px 30px;gap:8px;padding:6px 10px;font-family:'DM Mono',monospace;font-size:0.67rem;letter-spacing:0.06em;color:#999;text-transform:uppercase;border-bottom:1px solid var(--rule)">
+      <span>Date</span><span>Description</span><span style="text-align:right">Amount</span><span>Loan</span><span></span>
+    </div>
+    <div class="scroll-area" id="repaymentLog"></div>
+  </div>
+</div>
+
+<div id="repaymentModal" class="modal-overlay">
+  <div class="modal" id="repaymentModalContent"></div>
 </div>
 
 <div class="modal-overlay" id="modalOverlay">
@@ -701,7 +734,188 @@ async function saveAllToSheet(){
   }catch(e){console.error(e);setStatus('\u25cf Save failed','error');alert('Save failed. Check console for details.');}
 }
 
-window.addEventListener('DOMContentLoaded',loadAll);
+
+// ─── REPAYMENT TRACKER ────────────────────────────────────────────────────────
+
+// Storage key for repayment data (stored in memory, saved to Sheet col via appendRow)
+// We'll store loans in a dedicated sheet range and payments separately
+// For now use localStorage as fast local store + sync to sheet
+let repaymentData = {
+  loans: [],
+  payments: []
+};
+
+function loadRepaymentData() {
+  try {
+    const stored = localStorage.getItem('birchwood_repayments');
+    if (stored) repaymentData = JSON.parse(stored);
+  } catch(e) {}
+  renderRepayments();
+}
+
+function saveRepaymentData() {
+  try { localStorage.setItem('birchwood_repayments', JSON.stringify(repaymentData)); } catch(e) {}
+}
+
+function renderRepayments() {
+  renderLoanList('owe', 'oweList');
+  renderLoanList('owed', 'owedList');
+  renderRepaymentLog();
+}
+
+function renderLoanList(direction, elId) {
+  const loans = repaymentData.loans.filter(l => l.direction === direction);
+  const el = document.getElementById(elId);
+  if (!loans.length) {
+    el.innerHTML = '<div class="card" style="color:#999;font-size:0.82rem;text-align:center;padding:24px">No entries yet</div>';
+    return;
+  }
+  let html = '';
+  loans.forEach((loan, idx) => {
+    const payments = repaymentData.payments.filter(p => p.loanId === loan.id);
+    const paid = payments.reduce((s, p) => s + p.amount, 0);
+    const remaining = Math.max(0, loan.total - paid);
+    const pct = Math.min(100, Math.round((paid / loan.total) * 100));
+    const monthsLeft = loan.monthly > 0 ? Math.ceil(remaining / loan.monthly) : null;
+    const accentClass = direction === 'owe' ? 'accent-left' : 'accent-green';
+
+    html += `<div class="card ${accentClass}" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:600;font-size:0.9rem">${loan.name}</div>
+          <div style="font-size:0.73rem;color:#999;margin-top:2px">${loan.notes||''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:${direction==='owe'?'var(--accent)':'var(--accent2)'}">£${remaining.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+          <div style="font-size:0.72rem;color:#999">remaining of £${loan.total.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        </div>
+      </div>
+      <div style="background:var(--rule);border-radius:3px;height:8px;overflow:hidden;margin-bottom:8px">
+        <div style="width:${pct}%;height:100%;background:${direction==='owe'?'var(--accent)':'var(--accent2)'};border-radius:3px;transition:width 0.4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.73rem;color:#888">
+        <span>${pct}% paid${loan.monthly?` · £${loan.monthly}/mo`:''}</span>
+        <span>${monthsLeft ? monthsLeft+' months to clear' : 'No fixed repayment'}</span>
+      </div>
+      ${loan.monthly ? `<div style="margin-top:4px;font-size:0.72rem;color:#999">Started ${loan.startDate}${monthsLeft?' · Clear by approx '+getPayoffDate(monthsLeft):''}</div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-secondary" style="font-size:0.75rem;padding:5px 12px" onclick="openRepaymentModal('payment','${loan.id}')">Log Payment</button>
+        <button class="btn btn-secondary" style="font-size:0.75rem;padding:5px 12px;color:var(--accent)" onclick="deleteLoan('${loan.id}')">Remove</button>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function getPayoffDate(monthsLeft) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + monthsLeft);
+  return d.toLocaleDateString('en-GB', {month:'short', year:'numeric'});
+}
+
+function renderRepaymentLog() {
+  const payments = [...repaymentData.payments].sort((a,b) => new Date(b.date) - new Date(a.date));
+  let html = '';
+  payments.forEach(p => {
+    const loan = repaymentData.loans.find(l => l.id === p.loanId);
+    const loanName = loan ? loan.name : 'Unknown';
+    const direction = loan ? loan.direction : '';
+    html += `<div style="display:grid;grid-template-columns:90px 1fr 100px 100px 30px;gap:8px;padding:7px 10px;border-bottom:1px solid #f0ece4;font-size:0.8rem;align-items:center">
+      <span style="font-family:'DM Mono',monospace;color:#999;font-size:0.75rem">${p.date}</span>
+      <span>${p.notes||loanName}</span>
+      <span style="font-family:'DM Mono',monospace;text-align:right;color:${direction==='owe'?'var(--accent)':'var(--accent2)'}">£${p.amount.toFixed(2)}</span>
+      <span style="font-size:0.75rem;color:#888">${loanName}</span>
+      <span style="cursor:pointer;color:#ccc;text-align:center" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#ccc'" onclick="deletePayment('${p.id}')">×</span>
+    </div>`;
+  });
+  document.getElementById('repaymentLog').innerHTML = html || '<div style="padding:16px;color:#999;font-size:0.82rem">No payments logged yet</div>';
+}
+
+function openRepaymentModal(type, loanId) {
+  const modal = document.getElementById('repaymentModal');
+  const content = document.getElementById('repaymentModalContent');
+
+  if (type === 'owe' || type === 'owed') {
+    const dir = type;
+    const label = dir === 'owe' ? 'Who do you owe?' : 'Who owes you?';
+    content.innerHTML = `
+      <h3>${dir === 'owe' ? '💳 Add Money I Owe' : '💰 Add Money Owed to Me'}</h3>
+      <div class="form-row"><label>${label}</label><input type="text" id="rl_name" placeholder="e.g. Mum & Dad, Mortgage Drawdown"></div>
+      <div class="form-row"><label>Total Amount (£)</label><input type="number" id="rl_total" placeholder="0"></div>
+      <div class="form-row"><label>Monthly Repayment (£)</label><input type="number" id="rl_monthly" placeholder="0 if irregular"></div>
+      <div class="form-row"><label>Start Date</label><input type="text" id="rl_start" placeholder="e.g. Jan 2026"></div>
+      <div class="form-row"><label>Notes</label><input type="text" id="rl_notes" placeholder="Optional"></div>
+      <div class="modal-btns">
+        <button class="btn btn-secondary" onclick="closeRepaymentModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveLoan('${dir}')">Add</button>
+      </div>`;
+  } else if (type === 'payment') {
+    const loanOpts = repaymentData.loans.map(l => `<option value="${l.id}"${l.id===loanId?' selected':''}>${l.name}</option>`).join('');
+    content.innerHTML = `
+      <h3>Log a Payment</h3>
+      <div class="form-row"><label>Loan / Person</label><select id="rp_loan">${loanOpts}</select></div>
+      <div class="form-row"><label>Date</label><input type="text" id="rp_date" placeholder="e.g. 01.05.2026" value="${new Date().toLocaleDateString('en-GB').replace(/\//g,'.')}"></div>
+      <div class="form-row"><label>Amount (£)</label><input type="number" id="rp_amount" placeholder="0"></div>
+      <div class="form-row"><label>Notes</label><input type="text" id="rp_notes" placeholder="Optional"></div>
+      <div class="modal-btns">
+        <button class="btn btn-secondary" onclick="closeRepaymentModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="savePayment()">Save Payment</button>
+      </div>`;
+  }
+  modal.classList.add('open');
+}
+
+function closeRepaymentModal() {
+  document.getElementById('repaymentModal').classList.remove('open');
+}
+
+function saveLoan(direction) {
+  const name = document.getElementById('rl_name').value;
+  const total = parseFloat(document.getElementById('rl_total').value) || 0;
+  const monthly = parseFloat(document.getElementById('rl_monthly').value) || 0;
+  const startDate = document.getElementById('rl_start').value;
+  const notes = document.getElementById('rl_notes').value;
+  if (!name || !total) { alert('Please enter a name and total amount'); return; }
+  const loan = { id: Date.now().toString(), direction, name, total, monthly, startDate, notes };
+  repaymentData.loans.push(loan);
+  saveRepaymentData();
+  closeRepaymentModal();
+  renderRepayments();
+}
+
+function savePayment() {
+  const loanId = document.getElementById('rp_loan').value;
+  const date = document.getElementById('rp_date').value;
+  const amount = parseFloat(document.getElementById('rp_amount').value) || 0;
+  const notes = document.getElementById('rp_notes').value;
+  if (!loanId || !amount) { alert('Please select a loan and enter an amount'); return; }
+  const payment = { id: Date.now().toString(), loanId, date, amount, notes };
+  repaymentData.payments.push(payment);
+  saveRepaymentData();
+  closeRepaymentModal();
+  renderRepayments();
+}
+
+function deleteLoan(loanId) {
+  if (!confirm('Remove this loan and all its payment history?')) return;
+  repaymentData.loans = repaymentData.loans.filter(l => l.id !== loanId);
+  repaymentData.payments = repaymentData.payments.filter(p => p.loanId !== loanId);
+  saveRepaymentData();
+  renderRepayments();
+}
+
+function deletePayment(paymentId) {
+  if (!confirm('Remove this payment?')) return;
+  repaymentData.payments = repaymentData.payments.filter(p => p.id !== paymentId);
+  saveRepaymentData();
+  renderRepayments();
+}
+
+document.getElementById('repaymentModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('repaymentModal')) closeRepaymentModal();
+});
+
+window.addEventListener('DOMContentLoaded', function(){ loadAll(); loadRepaymentData(); });
 </script>
 </body>
 </html>
